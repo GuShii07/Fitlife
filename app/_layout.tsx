@@ -84,8 +84,8 @@ export default function RootLayout() {
 
     // Pending trainer should not enter app
     if (profile.role === "TRAINER" && profile.trainer_approved === false) {
-      if (segments[0] !== "auth" || segments[1] !== "trainer-pending") {
-        router.replace("/auth/trainer-pending");
+      if (segments[0] !== "trainerTabs" || segments[1] !== "pending") {
+        router.replace("/trainerTabs/pending");
       }
       return;
     }

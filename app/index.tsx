@@ -39,7 +39,7 @@ export default function Index() {
             }
 
             if (profile.role === "TRAINER" && profile.trainer_approved === false) {
-                setTarget("/auth/trainer-pending");
+                setTarget("/trainerTabs/pending");
                 return;
             }
 

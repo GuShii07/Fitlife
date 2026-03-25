@@ -134,6 +134,7 @@ export default function TrainerSignup() {
       router.push({
         pathname: "/auth/VerifyOtp",
         params: {
+          mode: "signup",
           email: cleanEmail,
 
           // role flags

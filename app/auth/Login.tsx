@@ -64,7 +64,29 @@ export default function Login() {
   };
 
   const goToSignup = () => router.push("/auth/ChooseRole");
+//   const changeEmailHardcoded = async () => {
+//   try {
+//     const { data, error } = await supabase.functions.invoke("update-email", {
+//       body: {
+//         userId: "eb39a499-2b20-4863-9029-847eb86847df",
+//         newEmail: "amagar675@gmail.com",
+//       },
+//     });
 
+//     if (error) throw error;
+
+//     const { error: profileError } = await supabase
+//       .from("profiles")
+//       .update({ email: "amagar@gmail.com" })
+//       .eq("id", "eb39a499-2b20-4863-9029-847eb86847df");
+
+//     if (profileError) throw profileError;
+
+//     Alert.alert("Success", "Email updated successfully");
+//   } catch (err: any) {
+//     Alert.alert("Error", err.message || "Something went wrong");
+//   }
+// };
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: "#0B0F1A" }}
@@ -137,6 +159,9 @@ export default function Login() {
               Create an account
             </Text>
           </TouchableOpacity>
+          {/* <TouchableOpacity onPress={changeEmailHardcoded} >
+  <Text style={{color: "#9AA6BD"}}>Change Email (Test)</Text>
+</TouchableOpacity> */}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

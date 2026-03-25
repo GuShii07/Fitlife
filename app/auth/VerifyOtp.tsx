@@ -14,7 +14,7 @@ type ActivityLevel =
   | "moderately_active"
   | "very_active"
   | "extra_active";
-type Role = "USER" | "TRAINER";
+type Role = "USER" | "TRAINER"| "ADMIN";
 type OtpMode = "signup" | "login";
 
 async function uriToArrayBuffer(uri: string) {
@@ -226,7 +226,7 @@ export default function VerifyOtp() {
         }
 
         if (profile.role === "TRAINER" && !profile.trainer_approved) {
-          router.replace("/auth/trainer-pending");
+          router.replace("/trainerTabs/pending");
           return;
         }
 
@@ -346,13 +346,7 @@ export default function VerifyOtp() {
 
         if (appErr) throw appErr;
 
-        router.replace({
-          pathname: "/auth/reset-password",
-          params: {
-            fromSignup: "1",
-            next: "/auth/trainer-pending",
-          },
-        });
+        router.replace("/trainerTabs/pending");
         return;
       }
 

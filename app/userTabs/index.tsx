@@ -3,46 +3,228 @@
 // If you don't have react-native-svg installed:
 //   npx expo install react-native-svg
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo } from "react";
-import { ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { router, useFocusEffect } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
+import { supabase } from "../../lib/supabase";
+
+const EXERCISE_DAILY_GOAL_KCAL = 300;
+
+type DietLogRow = {
+  calories: number | null;
+  carbs: number | null;
+  protein: number | null;
+  fat: number | null;
+  created_at?: string;
+};
+
+type WorkoutLogRow = {
+  id: string;
+  title: string;
+  calories_burned: number | null;
+  total_duration_mins: number | null;
+  created_at?: string;
+};
+
+type TrainerRelation = {
+  trainer_id: string;
+  package_id: string | null;
+  status: "approved" | "pending" | "declined" | "ended";
+  created_at: string;
+};
 
 export default function Home() {
-  const userName = "Prajwal";
-  const dailyCalorieGoal = 1800;
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState("User");
+  const [dailyCalorieGoal, setDailyCalorieGoal] = useState(2000);
 
-  const caloriesRemaining = 1000;
-  const caloriesConsumed = Math.max(0, dailyCalorieGoal - caloriesRemaining);
+  const [caloriesConsumed, setCaloriesConsumed] = useState(0);
+  const [foodCount, setFoodCount] = useState(0);
+
+  const [macros, setMacros] = useState({
+    carbs: { value: 0, max: 180 },
+    protein: { value: 0, max: 140 },
+    fat: { value: 0, max: 70 },
+  });
+
+  const [exercise, setExercise] = useState({
+    pct: 0,
+    updated: "No workouts logged yet",
+  });
+
+  const [latestWorkout, setLatestWorkout] = useState<WorkoutLogRow | null>(null);
+
+  const [trainer, setTrainer] = useState({
+    name: "",
+    time: "",
+    price: "",
+    hasTrainer: false,
+  });
+
+  const [trainerSummary, setTrainerSummary] = useState({
+    active: 0,
+    pending: 0,
+  });
+
+  const caloriesRemaining = Math.max(0, dailyCalorieGoal - caloriesConsumed);
   const caloriePct = clamp(caloriesConsumed / dailyCalorieGoal, 0, 1);
 
-  const macros = {
-    carbs: { value: 70, max: 180 },
-    protein: { value: 55, max: 140 },
-    fat: { value: 28, max: 70 },
-  };
+  const loadDashboard = useCallback(async () => {
+    try {
+      setLoading(true);
 
-  const trainer = {
-    name: "John Williams",
-    time: "5:30 AM",
-    price: "$ 140.00",
-    hasTrainer: true,
-  };
+      const {
+        data: { user },
+        error: userErr,
+      } = await supabase.auth.getUser();
 
-  const exercise = {
-    pct: 0.2,
-    updated: "Last updated 3mins ago",
-  };
+      if (userErr) throw userErr;
+      if (!user) {
+        setUserName("User");
+        setCaloriesConsumed(0);
+        setFoodCount(0);
+        setLatestWorkout(null);
+        setTrainer({ name: "", time: "", price: "", hasTrainer: false });
+        setTrainerSummary({ active: 0, pending: 0 });
+        return;
+      }
+
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(startOfDay);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+
+      const startIso = startOfDay.toISOString();
+      const endIso = endOfDay.toISOString();
+
+      const [profileRes, dietRes, workoutRes, trainerRes] = await Promise.all([
+        supabase.from("profiles").select("first_name, calorie_goal").eq("id", user.id).maybeSingle(),
+        supabase
+          .from("diet_logs")
+          .select("calories, carbs, protein, fat, created_at")
+          .eq("user_id", user.id)
+          .gte("created_at", startIso)
+          .lt("created_at", endIso),
+        supabase
+          .from("workout_logs")
+          .select("id, title, calories_burned, total_duration_mins, created_at")
+          .eq("user_id", user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("user_trainers")
+          .select("trainer_id, package_id, status, created_at")
+          .eq("user_id", user.id)
+          .in("status", ["approved", "pending"])
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (profileRes.error) throw profileRes.error;
+      if (dietRes.error) throw dietRes.error;
+      if (workoutRes.error) throw workoutRes.error;
+      if (trainerRes.error) throw trainerRes.error;
+
+      const profile = profileRes.data;
+      setUserName(profile?.first_name?.trim() || "User");
+
+      const goal = Number(profile?.calorie_goal || 2000);
+      setDailyCalorieGoal(goal);
+
+      const dietLogs = (dietRes.data || []) as DietLogRow[];
+      const consumed = dietLogs.reduce((sum, row) => sum + Number(row.calories || 0), 0);
+      const carbs = dietLogs.reduce((sum, row) => sum + Number(row.carbs || 0), 0);
+      const protein = dietLogs.reduce((sum, row) => sum + Number(row.protein || 0), 0);
+      const fat = dietLogs.reduce((sum, row) => sum + Number(row.fat || 0), 0);
+
+      setCaloriesConsumed(Math.round(consumed));
+      setFoodCount(dietLogs.length);
+      setMacros({
+        carbs: { value: Math.round(carbs), max: 180 },
+        protein: { value: Math.round(protein), max: 140 },
+        fat: { value: Math.round(fat), max: 70 },
+      });
+
+      const workouts = (workoutRes.data || []) as WorkoutLogRow[];
+      const todaysWorkouts = workouts.filter((w) => {
+        if (!w.created_at) return false;
+        return w.created_at >= startIso && w.created_at < endIso;
+      });
+      const totalExerciseCalories = todaysWorkouts.reduce(
+        (sum, row) => sum + Number(row.calories_burned || 0),
+        0,
+      );
+
+      const newestWorkout = workouts[0] || null;
+      setLatestWorkout(newestWorkout);
+      setExercise({
+        pct: clamp(totalExerciseCalories / EXERCISE_DAILY_GOAL_KCAL, 0, 1),
+        updated: newestWorkout?.created_at
+          ? `Last updated ${formatRelativeTime(newestWorkout.created_at)}`
+          : "No workouts logged yet",
+      });
+
+      const trainerRows = (trainerRes.data || []) as TrainerRelation[];
+      const approvedRows = trainerRows.filter((row) => row.status === "approved");
+      const pendingRows = trainerRows.filter((row) => row.status === "pending");
+
+      setTrainerSummary({ active: approvedRows.length, pending: pendingRows.length });
+
+      const latestApproved = approvedRows[0];
+      if (!latestApproved) {
+        setTrainer({
+          name: "",
+          time: pendingRows.length > 0 ? "Request pending" : "No active trainer",
+          price: "",
+          hasTrainer: false,
+        });
+      } else {
+        const [trainerProfileRes, packageRes] = await Promise.all([
+          supabase.from("profiles").select("first_name").eq("id", latestApproved.trainer_id).maybeSingle(),
+          latestApproved.package_id
+            ? supabase
+                .from("trainer_packages")
+                .select("price")
+                .eq("id", latestApproved.package_id)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
+        ]);
+
+        if (trainerProfileRes.error) throw trainerProfileRes.error;
+        if (packageRes.error) throw packageRes.error;
+
+        const trainerName = trainerProfileRes.data?.first_name?.trim() || "Your Trainer";
+        const packagePrice = Number(packageRes.data?.price || 0);
+
+        setTrainer({
+          name: trainerName,
+          time: `Since ${formatShortDate(latestApproved.created_at)}`,
+          price: packagePrice > 0 ? `${formatCurrency(packagePrice)}/mo` : "Active plan",
+          hasTrainer: true,
+        });
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message || "Failed to load dashboard data.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [loadDashboard]),
+  );
 
   // extra useful homepage items
   const extras = useMemo(
     () => [
-      { icon: "water-outline", label: "Water", value: "1.2L / 3L" },
-      { icon: "walk-outline", label: "Steps", value: "5,430" },
-      { icon: "flame-outline", label: "Streak", value: "4 days" },
-      { icon: "moon-outline", label: "Sleep", value: "6h 40m" },
+      { icon: "restaurant-outline", label: "Foods Logged", value: `${foodCount}` },
+      { icon: "barbell-outline", label: "Workout Goal", value: `${Math.round(exercise.pct * 100)}%` },
+      { icon: "person-outline", label: "Active Trainer", value: `${trainerSummary.active}` },
+      { icon: "time-outline", label: "Pending Requests", value: `${trainerSummary.pending}` },
     ],
-    [],
+    [exercise.pct, foodCount, trainerSummary.active, trainerSummary.pending],
   );
 
   return (
@@ -68,6 +250,13 @@ export default function Home() {
         </View>
 
         <Text style={styles.sectionTitle}>Today</Text>
+
+        {loading && (
+          <View style={[styles.card, { marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 10 }]}> 
+            <ActivityIndicator color="#FF4D2D" />
+            <Text style={{ color: "#9AA6BD", fontWeight: "700" }}>Refreshing your dashboard...</Text>
+          </View>
+        )}
 
         {/* Calories card */}
         <View style={styles.card}>
@@ -104,8 +293,6 @@ export default function Home() {
                   justifyContent: "space-between",
                 }}
               >
-                <MiniStat icon="restaurant-outline" label="Food" value="4" />
-                <MiniStat icon="flame-outline" label="Exercise" value="20" />
               </View>
 
               <MacroRow
@@ -165,7 +352,7 @@ export default function Home() {
               <Text style={{ color: "#9AA6BD", fontSize: 12, marginTop: 2 }}>
                 {trainer.hasTrainer
                   ? "Your coach today"
-                  : "Hire a trainer to get guidance"}
+                  : trainer.time || "Hire a trainer to get guidance"}
               </Text>
             </View>
 
@@ -268,7 +455,7 @@ export default function Home() {
         </View>
 
         {/* Weight card (placeholder like your screenshot, but useful) */}
-        <View style={[styles.card, { marginTop: 12 }]}>
+        <View style={[styles.card, { marginTop: 12 }]}> 
           <View
             style={{
               flexDirection: "row",
@@ -276,17 +463,33 @@ export default function Home() {
               alignItems: "center",
             }}
           >
-            <Text style={styles.cardTitle}>WEIGHT</Text>
+            <Text style={styles.cardTitle}>LATEST WORKOUT</Text>
             <TouchableOpacity activeOpacity={0.9} style={styles.addBtn}>
               <Ionicons name="add" size={18} color="white" />
-              <Text style={{ color: "white", fontWeight: "900" }}>Log</Text>
+              <Text style={{ color: "white", fontWeight: "900" }}>New</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.weightPlaceholder}>
-            <Text style={{ color: "#9AA6BD", fontWeight: "800" }}>
-              Add your weight to see your progress chart
-            </Text>
+            {!latestWorkout ? (
+              <Text style={{ color: "#9AA6BD", fontWeight: "800" }}>
+                You have no workouts yet. Log your first workout now.
+              </Text>
+            ) : (
+              <View style={{ alignItems: "center" }}>
+                <Text style={{ color: "white", fontWeight: "900", fontSize: 15 }}>
+                  {latestWorkout.title}
+                </Text>
+                <Text style={{ color: "#9AA6BD", marginTop: 6, fontSize: 12 }}>
+                  {latestWorkout.total_duration_mins || 0} mins • {latestWorkout.calories_burned || 0} kcal
+                </Text>
+                <Text style={{ color: "#9AA6BD", marginTop: 4, fontSize: 12 }}>
+                  {latestWorkout.created_at
+                    ? `Logged ${formatRelativeTime(latestWorkout.created_at)}`
+                    : "Logged recently"}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -311,10 +514,12 @@ export default function Home() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: "white", fontWeight: "900" }}>
-                Upper body — 25 mins
+                {latestWorkout ? `${latestWorkout.title} — ${latestWorkout.total_duration_mins || 0} mins` : "Log your next workout"}
               </Text>
               <Text style={{ color: "#9AA6BD", fontSize: 12, marginTop: 2 }}>
-                Starts in 45 mins • Home
+                {latestWorkout?.created_at
+                  ? `Last activity ${formatRelativeTime(latestWorkout.created_at)}`
+                  : "No recent activity"}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9AA6BD" />
@@ -367,26 +572,6 @@ function ProgressRing({
   );
 }
 
-function MiniStat({
-  icon,
-  label,
-  value,
-}: {
-  icon: string;
-  label: string;
-  value: string;
-}) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <Ionicons name={icon as any} size={14} color="#9AA6BD" />
-      <Text style={{ color: "#9AA6BD", fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: "white", fontWeight: "900", fontSize: 12 }}>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
 function MacroRow({
   label,
   value,
@@ -425,6 +610,43 @@ function MiniInfo({ icon, text }: { icon: string; text: string }) {
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
+}
+
+function formatRelativeTime(dateValue: string) {
+  const date = new Date(dateValue);
+  const diffMs = Date.now() - date.getTime();
+  if (Number.isNaN(diffMs)) return "recently";
+
+  const minuteMs = 60 * 1000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+
+  if (diffMs < hourMs) {
+    const minutes = Math.max(1, Math.floor(diffMs / minuteMs));
+    return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
+  }
+
+  if (diffMs < dayMs) {
+    const hours = Math.max(1, Math.floor(diffMs / hourMs));
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+
+  const days = Math.max(1, Math.floor(diffMs / dayMs));
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function formatShortDate(dateValue: string) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "recently";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
 }
 
 /* -------------------- Styles -------------------- */
