@@ -12,6 +12,7 @@ import {
 import Animated, {
   Extrapolate,
   interpolate,
+  SharedValue,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -28,6 +29,17 @@ type Slide = {
   highlight: string;
   subtitle: string;
   image: any; // require(...)
+};
+
+type SlideImageCardProps = {
+  item: Slide;
+  index: number;
+  scrollX: SharedValue<number>;
+};
+
+type OnboardingDotProps = {
+  index: number;
+  scrollX: SharedValue<number>;
 };
 
 const SLIDES: Slide[] = [
@@ -57,6 +69,79 @@ const SLIDES: Slide[] = [
   },
 ];
 
+function SlideImageCard({ item, index, scrollX }: SlideImageCardProps) {
+  const imageStyle = useAnimatedStyle(() => {
+    const x = scrollX.value / W;
+
+    const scale = interpolate(
+      x,
+      [index - 1, index, index + 1],
+      [0.85, 1, 0.85],
+      Extrapolate.CLAMP
+    );
+
+    const translateX = interpolate(
+      scrollX.value,
+      [(index - 1) * W, index * W, (index + 1) * W],
+      [42, 0, -42],
+      Extrapolate.CLAMP
+    );
+
+    const translateY = interpolate(
+      x,
+      [index - 1, index, index + 1],
+      [14, 0, 14],
+      Extrapolate.CLAMP
+    );
+
+    const zIndex = Math.round(
+      interpolate(
+        x,
+        [index - 1, index, index + 1],
+        [0, 10, 0],
+        Extrapolate.CLAMP
+      )
+    );
+
+    const opacity = index < x + 1.2 && index > x - 1.2 ? 1 : 0;
+
+    return {
+      transform: [{ translateX }, { translateY }, { scale }],
+      zIndex,
+      opacity,
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.imageCard, imageStyle]}>
+      <Image source={item.image} style={styles.image} />
+    </Animated.View>
+  );
+}
+
+function OnboardingDot({ index, scrollX }: OnboardingDotProps) {
+  const dotStyle = useAnimatedStyle(() => {
+    const x = scrollX.value / W;
+
+    return {
+      width: interpolate(
+        x,
+        [index - 1, index, index + 1],
+        [6, 20, 6],
+        Extrapolate.CLAMP
+      ),
+      opacity: interpolate(
+        x,
+        [index - 1, index, index + 1],
+        [0.3, 1, 0.3],
+        Extrapolate.CLAMP
+      ),
+    };
+  });
+
+  return <Animated.View style={[styles.dot, dotStyle]} />;
+}
+
 export default function Onboarding() {
   const scrollX = useSharedValue(0);
 
@@ -72,57 +157,9 @@ export default function Onboarding() {
 
       {/* IMAGE STACK (must NOT block touches) */}
       <View style={styles.imageStack} pointerEvents="none">
-        {SLIDES.map((item, index) => {
-          const imageStyle = useAnimatedStyle(() => {
-            const x = scrollX.value / W;
-
-            const scale = interpolate(
-              x,
-              [index - 1, index, index + 1],
-              [0.85, 1, 0.85],
-              Extrapolate.CLAMP
-            );
-
-            const translateX = interpolate(
-              scrollX.value,
-              [(index - 1) * W, index * W, (index + 1) * W],
-              [42, 0, -42],
-              Extrapolate.CLAMP
-            );
-
-            const translateY = interpolate(
-              x,
-              [index - 1, index, index + 1],
-              [14, 0, 14],
-              Extrapolate.CLAMP
-            );
-
-            // Use a derived zIndex so current slide is on top
-            const zIndex = Math.round(
-              interpolate(
-                x,
-                [index - 1, index, index + 1],
-                [0, 10, 0],
-                Extrapolate.CLAMP
-              )
-            );
-
-            // Keep only nearby cards visible (cleaner stacking)
-            const opacity = index < x + 1.2 && index > x - 1.2 ? 1 : 0;
-
-            return {
-              transform: [{ translateX }, { translateY }, { scale }],
-              zIndex,
-              opacity,
-            };
-          });
-
-          return (
-            <Animated.View key={index} style={[styles.imageCard, imageStyle]}>
-              <Image source={item.image} style={styles.image} />
-            </Animated.View>
-          );
-        })}
+        {SLIDES.map((item, index) => (
+          <SlideImageCard key={index} item={item} index={index} scrollX={scrollX} />
+        ))}
       </View>
 
       {/* TEXT + SWIPE TRACKING LAYER */}
@@ -151,28 +188,9 @@ export default function Onboarding() {
       {/* BOTTOM UI */}
       <View style={styles.bottom}>
         <View style={styles.dots}>
-          {SLIDES.map((_, i) => {
-            const dotStyle = useAnimatedStyle(() => {
-              const x = scrollX.value / W;
-
-              return {
-                width: interpolate(
-                  x,
-                  [i - 1, i, i + 1],
-                  [6, 20, 6],
-                  Extrapolate.CLAMP
-                ),
-                opacity: interpolate(
-                  x,
-                  [i - 1, i, i + 1],
-                  [0.3, 1, 0.3],
-                  Extrapolate.CLAMP
-                ),
-              };
-            });
-
-            return <Animated.View key={i} style={[styles.dot, dotStyle]} />;
-          })}
+          {SLIDES.map((_, i) => (
+            <OnboardingDot key={i} index={i} scrollX={scrollX} />
+          ))}
         </View>
 
         <Pressable style={styles.btn} onPress={() => router.push("../auth/ChooseRole")}>

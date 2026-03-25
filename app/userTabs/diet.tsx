@@ -82,45 +82,45 @@ export default function Diet() {
   const [detailMealTitle, setDetailMealTitle] = useState("");
 
   useEffect(() => {
-    initDiet();
+    const run = async () => {
+      try {
+        setPageLoading(true);
+
+        const {
+          data: { user },
+          error: userErr,
+        } = await supabase.auth.getUser();
+
+        if (userErr) throw userErr;
+
+        if (!user) {
+          Alert.alert("Not logged in", "Please log in first.");
+          return;
+        }
+
+        setUserId(user.id);
+
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("calorie_goal")
+          .eq("id", user.id)
+          .single();
+
+        if (!profileErr && profile?.calorie_goal) {
+          setCalorieGoal(Number(profile.calorie_goal));
+        }
+
+        await loadFoodDatabase();
+        await loadDietLogs(user.id);
+      } catch (e: any) {
+        Alert.alert("Error", e?.message || "Failed to load diet data.");
+      } finally {
+        setPageLoading(false);
+      }
+    };
+
+    run();
   }, []);
-
-  async function initDiet() {
-    try {
-      setPageLoading(true);
-
-      const {
-        data: { user },
-        error: userErr,
-      } = await supabase.auth.getUser();
-
-      if (userErr) throw userErr;
-
-      if (!user) {
-        Alert.alert("Not logged in", "Please log in first.");
-        return;
-      }
-
-      setUserId(user.id);
-
-      const { data: profile, error: profileErr } = await supabase
-        .from("profiles")
-        .select("calorie_goal")
-        .eq("id", user.id)
-        .single();
-
-      if (!profileErr && profile?.calorie_goal) {
-        setCalorieGoal(Number(profile.calorie_goal));
-      }
-
-      await loadFoodDatabase();
-      await loadDietLogs(user.id);
-    } catch (e: any) {
-      Alert.alert("Error", e?.message || "Failed to load diet data.");
-    } finally {
-      setPageLoading(false);
-    }
-  }
 
   async function loadFoodDatabase() {
     const { data, error } = await supabase

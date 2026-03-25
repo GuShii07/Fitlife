@@ -15,6 +15,7 @@ type ActivityLevel =
   | "very_active"
   | "extra_active";
 type Role = "USER" | "TRAINER";
+type OtpMode = "signup" | "login";
 
 async function uriToArrayBuffer(uri: string) {
   const base64 = await FileSystem.readAsStringAsync(uri, {
@@ -149,6 +150,7 @@ function calculateCalorieGoal(params: {
 
 export default function VerifyOtp() {
   const params = useLocalSearchParams<{
+    mode?: OtpMode;
     email?: string;
 
     // USER profile fields
@@ -181,6 +183,7 @@ export default function VerifyOtp() {
   }>();
 
   const safeEmail = useMemo(() => String(params.email || "").trim().toLowerCase(), [params.email]);
+  const mode: OtpMode = params.mode === "login" ? "login" : "signup";
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
@@ -208,6 +211,38 @@ export default function VerifyOtp() {
 
       const userId = data.session?.user?.id;
       if (!userId) throw new Error("No session returned");
+
+      if (mode === "login") {
+        const { data: profile, error: profileErr } = await supabase
+          .from("profiles")
+          .select("role, trainer_approved")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (profileErr) throw profileErr;
+
+        if (!profile) {
+          throw new Error("Profile not found. Please sign up first.");
+        }
+
+        if (profile.role === "TRAINER" && !profile.trainer_approved) {
+          router.replace("/auth/trainer-pending");
+          return;
+        }
+
+        if (profile.role === "TRAINER") {
+          router.replace("/trainerTabs/dashboard");
+          return;
+        }
+
+        if (profile.role === "ADMIN") {
+          router.replace("/admin/admin");
+          return;
+        }
+
+        router.replace("/userTabs/diet");
+        return;
+      }
 
       const role: Role = params.role === "TRAINER" ? "TRAINER" : "USER";
 
@@ -311,15 +346,23 @@ export default function VerifyOtp() {
 
         if (appErr) throw appErr;
 
-        Alert.alert(
-          "Verification complete ✅",
-          "Your trainer account is pending admin approval.",
-          [{ text: "OK", onPress: () => router.replace("/auth/Login") }]
-        );
+        router.replace({
+          pathname: "/auth/reset-password",
+          params: {
+            fromSignup: "1",
+            next: "/auth/trainer-pending",
+          },
+        });
         return;
       }
 
-      router.replace("/");
+      router.replace({
+        pathname: "/auth/reset-password",
+        params: {
+          fromSignup: "1",
+          next: "/userTabs/diet",
+        },
+      });
     } catch (e: any) {
       Alert.alert("Verification failed", e?.message ?? "Try again.");
     } finally {
@@ -337,7 +380,7 @@ export default function VerifyOtp() {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: safeEmail,
-        options: { shouldCreateUser: true },
+        options: { shouldCreateUser: mode === "signup" },
       });
 
       if (error) throw error;

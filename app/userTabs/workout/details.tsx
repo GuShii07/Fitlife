@@ -39,37 +39,39 @@ export default function WorkoutDetails() {
     const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
 
     useEffect(() => {
-        if (workoutId) loadWorkout();
+        const run = async () => {
+            if (!workoutId) return;
+
+            try {
+                setLoading(true);
+
+                const { data: workoutData, error: workoutErr } = await supabase
+                    .from("workouts")
+                    .select("id,title,category,difficulty,duration_mins,kcal_estimate,tips,video_url")
+                    .eq("id", workoutId)
+                    .single();
+
+                if (workoutErr) throw workoutErr;
+
+                const { data: exerciseData, error: exErr } = await supabase
+                    .from("workout_exercises")
+                    .select("id,name,sets,reps,sort_order")
+                    .eq("workout_id", workoutId)
+                    .order("sort_order", { ascending: true });
+
+                if (exErr) throw exErr;
+
+                setWorkout(workoutData as Workout);
+                setExercises((exerciseData || []) as WorkoutExercise[]);
+            } catch (e: any) {
+                Alert.alert("Error", e?.message || "Failed to load workout details.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        run();
     }, [workoutId]);
-
-    async function loadWorkout() {
-        try {
-            setLoading(true);
-
-            const { data: workoutData, error: workoutErr } = await supabase
-                .from("workouts")
-                .select("id,title,category,difficulty,duration_mins,kcal_estimate,tips,video_url")
-                .eq("id", workoutId)
-                .single();
-
-            if (workoutErr) throw workoutErr;
-
-            const { data: exerciseData, error: exErr } = await supabase
-                .from("workout_exercises")
-                .select("id,name,sets,reps,sort_order")
-                .eq("workout_id", workoutId)
-                .order("sort_order", { ascending: true });
-
-            if (exErr) throw exErr;
-
-            setWorkout(workoutData as Workout);
-            setExercises((exerciseData || []) as WorkoutExercise[]);
-        } catch (e) {
-            console.log("loadWorkout error", e);
-        } finally {
-            setLoading(false);
-        }
-    }
 
     if (loading) {
         return (

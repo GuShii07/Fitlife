@@ -6,7 +6,7 @@ export default function AuthCallback() {
   useEffect(() => {
     const run = async () => {
       // Supabase will complete session automatically if it can
-      const { data } = await supabase.auth.getSession();
+      await supabase.auth.getSession();
 
       // After verify, send them to login (or home if you want)
       router.replace("/auth/Login");

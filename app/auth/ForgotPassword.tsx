@@ -5,7 +5,6 @@ import { supabase } from "../../lib/supabase";
 
 export default function ForgotPassword() {
     const [email, setEmail] = useState("");
-    const [loading, setLoading] = useState(false);
 
     const sendCode = async () => {
         const cleanEmail = email.trim().toLowerCase();
@@ -14,8 +13,6 @@ export default function ForgotPassword() {
             Alert.alert("Enter email");
             return;
         }
-
-        setLoading(true);
 
         try {
             const { error } = await supabase.auth.signInWithOtp({
@@ -35,8 +32,6 @@ export default function ForgotPassword() {
         } catch (e: any) {
             Alert.alert("Failed", e.message);
         }
-
-        setLoading(false);
     };
 
     return (

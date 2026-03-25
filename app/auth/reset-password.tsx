@@ -1,9 +1,10 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useMemo, useState } from "react";
 import { Alert, Pressable, Text, TextInput, View } from "react-native";
 import { supabase } from "../../lib/supabase";
 
 export default function ResetPassword() {
+    const params = useLocalSearchParams<{ fromSignup?: string; next?: string }>();
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
     const [loading, setLoading] = useState(false);
@@ -15,18 +16,36 @@ export default function ResetPassword() {
     }, [password, confirm]);
 
     const updatePassword = async () => {
-
-        const { error } = await supabase.auth.updateUser({
-            password,
-        });
-
-        if (error) {
-            Alert.alert("Failed", error.message);
+        if (loading || !canSubmit) {
             return;
         }
 
-        Alert.alert("Password updated");
-        router.replace("/auth/Login");
+        setLoading(true);
+
+        const isFromSignup = params.fromSignup === "1";
+        const nextPath = typeof params.next === "string" && params.next.trim() ? params.next : "/auth/Login";
+
+        try {
+            const { error } = await supabase.auth.updateUser({
+                password,
+            });
+
+            if (error) {
+                Alert.alert("Failed", error.message);
+                return;
+            }
+
+            if (isFromSignup) {
+                Alert.alert("Password set", "Account secured. Continuing...");
+                router.replace(nextPath as any);
+                return;
+            }
+
+            Alert.alert("Password updated");
+            router.replace("/auth/Login");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (

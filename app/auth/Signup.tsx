@@ -48,15 +48,11 @@ export default function Signup() {
   const [currentWeight, setCurrentWeight] = useState("");
   const [goalWeight, setGoalWeight] = useState("");
 
-  const [activityLevel, setActivityLevel] = useState<ActivityLevel>("moderately_active");
+  const [activityLevel, setActivityLevel] =
+    useState<ActivityLevel>("moderately_active");
   const [goalType, setGoalType] = useState<GoalType>("lose_weight");
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
 
@@ -69,11 +65,6 @@ export default function Signup() {
 
     return unsub;
   }, [navigation, step]);
-
-  useEffect(() => {
-    setShowPassword(false);
-    setShowConfirmPassword(false);
-  }, [step]);
 
   const goBack = () => {
     if (step === 1) router.back();
@@ -124,7 +115,7 @@ export default function Signup() {
       case 8:
         return "We’ll tailor workouts and nutrition to match your goal.";
       case 9:
-        return "Add your email and password to save your profile.";
+        return "Add your email to receive a one-time verification code.";
       default:
         return "";
     }
@@ -135,7 +126,13 @@ export default function Signup() {
 
     if (step === 1) return firstName.trim().length >= 2;
 
-    if (step === 2) return gender === "male" || gender === "female" || gender === "others" || gender === "na";
+    if (step === 2)
+      return (
+        gender === "male" ||
+        gender === "female" ||
+        gender === "others" ||
+        gender === "na"
+      );
 
     if (step === 3) {
       const n = Number(age);
@@ -163,10 +160,7 @@ export default function Signup() {
     if (step === 8) return !!goalType;
 
     if (step === 9) {
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-      const passOk = password.length >= 8;
-      const matchOk = password === confirmPassword;
-      return emailOk && passOk && matchOk;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
     }
 
     return false;
@@ -182,8 +176,6 @@ export default function Signup() {
     activityLevel,
     goalType,
     email,
-    password,
-    confirmPassword,
   ]);
 
   const goNext = () => {
@@ -196,7 +188,7 @@ export default function Signup() {
   };
 
   const handleFinish = async () => {
-    if (!stepValid) return;
+    if (!stepValid || loading) return;
 
     setLoading(true);
 
@@ -215,9 +207,10 @@ export default function Signup() {
       router.push({
         pathname: "/auth/VerifyOtp",
         params: {
-          email: cleanEmail,
+          mode: "signup",
           role: "USER",
-          firstName,
+          email: cleanEmail,
+          firstName: firstName.trim(),
           gender,
           age,
           height,
@@ -230,7 +223,7 @@ export default function Signup() {
         },
       });
     } catch (e: any) {
-      Alert.alert("Failed to send code", e?.message ?? "Try again");
+      Alert.alert("Signup failed", e?.message ?? "Try again");
     } finally {
       setLoading(false);
     }
@@ -247,7 +240,11 @@ export default function Signup() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={goBack} activeOpacity={0.85} style={styles.backBtn}>
+          <TouchableOpacity
+            onPress={goBack}
+            activeOpacity={0.85}
+            style={styles.backBtn}
+          >
             <Ionicons name="arrow-back-outline" size={25} color="white" />
           </TouchableOpacity>
 
@@ -283,9 +280,21 @@ export default function Signup() {
           {step === 2 && (
             <View style={{ gap: 12 }}>
               <PillRow>
-                <Pill active={gender === "male"} text="Male" onPress={() => setGender("male")} />
-                <Pill active={gender === "female"} text="Female" onPress={() => setGender("female")} />
-                <Pill active={gender === "others"} text="Others" onPress={() => setGender("others")} />
+                <Pill
+                  active={gender === "male"}
+                  text="Male"
+                  onPress={() => setGender("male")}
+                />
+                <Pill
+                  active={gender === "female"}
+                  text="Female"
+                  onPress={() => setGender("female")}
+                />
+                <Pill
+                  active={gender === "others"}
+                  text="Others"
+                  onPress={() => setGender("others")}
+                />
               </PillRow>
               <Pill
                 active={gender === "na"}
@@ -315,7 +324,10 @@ export default function Signup() {
             <>
               <RowBetween>
                 <Text style={styles.label}>height</Text>
-                <HeightUnitToggle heightUnit={heightUnit} setHeightUnit={setHeightUnit} />
+                <HeightUnitToggle
+                  heightUnit={heightUnit}
+                  setHeightUnit={setHeightUnit}
+                />
               </RowBetween>
               <TextInput
                 placeholder={heightUnit === "cm" ? "e.g., 175" : "e.g., 5.8"}
@@ -326,7 +338,9 @@ export default function Signup() {
                 keyboardType="numeric"
               />
               <Text style={styles.helper}>
-                {heightUnit === "cm" ? "Allowed range: 100–250 cm" : "Allowed range: 3–8 ft"}
+                {heightUnit === "cm"
+                  ? "Allowed range: 100–250 cm"
+                  : "Allowed range: 3–8 ft"}
               </Text>
             </>
           )}
@@ -341,7 +355,9 @@ export default function Signup() {
                 placeholder={unit === "kg" ? "e.g., 72" : "e.g., 160"}
                 placeholderTextColor="#6B7690"
                 value={currentWeight}
-                onChangeText={(t) => setCurrentWeight(t.replace(/[^0-9.,]/g, ""))}
+                onChangeText={(t) =>
+                  setCurrentWeight(t.replace(/[^0-9.,]/g, ""))
+                }
                 style={styles.input}
                 keyboardType="numeric"
               />
@@ -441,56 +457,9 @@ export default function Signup() {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-
-              <Text style={[styles.label, { marginTop: 16 }]}>password</Text>
-              <View style={styles.passwordWrapper}>
-                <TextInput
-                  placeholder="Minimum 8 characters"
-                  placeholderTextColor="#6B7690"
-                  value={password}
-                  onChangeText={setPassword}
-                  style={[styles.input, { paddingRight: 44 }]}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword((v) => !v)}
-                  style={styles.eyeBtn}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={showPassword ? "eye-off-outline" : "eye-outline"}
-                    size={22}
-                    color="#9AA6BD"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={[styles.label, { marginTop: 16 }]}>confirm password</Text>
-              <View style={styles.passwordWrapper}>
-                <TextInput
-                  placeholder="Re-enter password"
-                  placeholderTextColor="#6B7690"
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  style={[styles.input, { paddingRight: 44 }]}
-                  secureTextEntry={!showConfirmPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword((v) => !v)}
-                  style={styles.eyeBtn}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons
-                    name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
-                    size={22}
-                    color="#9AA6BD"
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.helper}>Password must be at least 8 characters.</Text>
+              <Text style={styles.helper}>
+                We will send a 6-digit OTP to verify your email.
+              </Text>
             </>
           )}
         </View>
@@ -521,7 +490,13 @@ export default function Signup() {
 
 function RowBetween({ children }: { children: React.ReactNode }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
       {children}
     </View>
   );
@@ -555,29 +530,57 @@ function Pill({
         },
       ]}
     >
-      <Text style={{ color: active ? "#FFD3CA" : "#D7DEEA", fontWeight: "900" }}>
+      <Text
+        style={{ color: active ? "#FFD3CA" : "#D7DEEA", fontWeight: "900" }}
+      >
         {text}
       </Text>
     </TouchableOpacity>
   );
 }
 
-function UnitToggle({ unit, setUnit }: { unit: Unit; setUnit: (u: Unit) => void }) {
+function UnitToggle({
+  unit,
+  setUnit,
+}: {
+  unit: Unit;
+  setUnit: (u: Unit) => void;
+}) {
   return (
     <View style={{ flexDirection: "row", gap: 8 }}>
       <TouchableOpacity
         onPress={() => setUnit("kg")}
         activeOpacity={0.9}
-        style={[styles.unitBtn, { backgroundColor: unit === "kg" ? "#FF4D2D" : "transparent" }]}
+        style={[
+          styles.unitBtn,
+          { backgroundColor: unit === "kg" ? "#FF4D2D" : "transparent" },
+        ]}
       >
-        <Text style={{ color: unit === "kg" ? "white" : "#9AA6BD", fontWeight: "900" }}>kg</Text>
+        <Text
+          style={{
+            color: unit === "kg" ? "white" : "#9AA6BD",
+            fontWeight: "900",
+          }}
+        >
+          kg
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={() => setUnit("lb")}
         activeOpacity={0.9}
-        style={[styles.unitBtn, { backgroundColor: unit === "lb" ? "#FF4D2D" : "transparent" }]}
+        style={[
+          styles.unitBtn,
+          { backgroundColor: unit === "lb" ? "#FF4D2D" : "transparent" },
+        ]}
       >
-        <Text style={{ color: unit === "lb" ? "white" : "#9AA6BD", fontWeight: "900" }}>lb</Text>
+        <Text
+          style={{
+            color: unit === "lb" ? "white" : "#9AA6BD",
+            fontWeight: "900",
+          }}
+        >
+          lb
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -595,16 +598,36 @@ function HeightUnitToggle({
       <TouchableOpacity
         onPress={() => setHeightUnit("cm")}
         activeOpacity={0.9}
-        style={[styles.unitBtn, { backgroundColor: heightUnit === "cm" ? "#FF4D2D" : "transparent" }]}
+        style={[
+          styles.unitBtn,
+          { backgroundColor: heightUnit === "cm" ? "#FF4D2D" : "transparent" },
+        ]}
       >
-        <Text style={{ color: heightUnit === "cm" ? "white" : "#9AA6BD", fontWeight: "900" }}>cm</Text>
+        <Text
+          style={{
+            color: heightUnit === "cm" ? "white" : "#9AA6BD",
+            fontWeight: "900",
+          }}
+        >
+          cm
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity
         onPress={() => setHeightUnit("ft")}
         activeOpacity={0.9}
-        style={[styles.unitBtn, { backgroundColor: heightUnit === "ft" ? "#FF4D2D" : "transparent" }]}
+        style={[
+          styles.unitBtn,
+          { backgroundColor: heightUnit === "ft" ? "#FF4D2D" : "transparent" },
+        ]}
       >
-        <Text style={{ color: heightUnit === "ft" ? "white" : "#9AA6BD", fontWeight: "900" }}>ft</Text>
+        <Text
+          style={{
+            color: heightUnit === "ft" ? "white" : "#9AA6BD",
+            fontWeight: "900",
+          }}
+        >
+          ft
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -680,16 +703,6 @@ const styles = {
     backgroundColor: "transparent",
     borderWidth: 1.5,
     borderColor: "#FF4D2D",
-  },
-  passwordWrapper: {
-    position: "relative" as const,
-  },
-  eyeBtn: {
-    position: "absolute" as const,
-    right: 14,
-    top: 0,
-    height: 54,
-    justifyContent: "center" as const,
   },
   pill: {
     height: 54,

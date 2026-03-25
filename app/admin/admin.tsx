@@ -48,49 +48,49 @@ export default function AdminPage() {
     const [filter, setFilter] = useState<Status | "ALL">("PENDING");
 
     useEffect(() => {
-        init();
+        const run = async () => {
+            try {
+                setLoading(true);
+
+                const {
+                    data: { user },
+                    error: userErr,
+                } = await supabase.auth.getUser();
+
+                if (userErr) throw userErr;
+
+                if (!user) {
+                    Alert.alert("Not logged in", "Please log in first.");
+                    router.replace("/auth/Login");
+                    return;
+                }
+
+                setAdminId(user.id);
+
+                const { data: profile, error: profileErr } = await supabase
+                    .from("profiles")
+                    .select("role")
+                    .eq("id", user.id)
+                    .single();
+
+                if (profileErr) throw profileErr;
+
+                if (profile?.role !== "ADMIN") {
+                    Alert.alert("Access denied", "This page is only for admins.");
+                    router.back();
+                    return;
+                }
+
+                await loadApplications();
+            } catch (e: any) {
+                Alert.alert("Error", e?.message || "Failed to load admin page.");
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        run();
     }, []);
-
-    async function init() {
-        try {
-            setLoading(true);
-
-            const {
-                data: { user },
-                error: userErr,
-            } = await supabase.auth.getUser();
-
-            if (userErr) throw userErr;
-
-            if (!user) {
-                Alert.alert("Not logged in", "Please log in first.");
-                router.replace("/auth/Login");
-                return;
-            }
-
-            setAdminId(user.id);
-
-            const { data: profile, error: profileErr } = await supabase
-                .from("profiles")
-                .select("role")
-                .eq("id", user.id)
-                .single();
-
-            if (profileErr) throw profileErr;
-
-            if (profile?.role !== "ADMIN") {
-                Alert.alert("Access denied", "This page is only for admins.");
-                router.back();
-                return;
-            }
-
-            await loadApplications();
-        } catch (e: any) {
-            Alert.alert("Error", e?.message || "Failed to load admin page.");
-        } finally {
-            setLoading(false);
-        }
-    }
 
     async function loadApplications() {
         const { data, error } = await supabase
